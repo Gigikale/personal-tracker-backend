@@ -1,0 +1,1544 @@
+openapi: 3.0.3
+info:
+  title: Personal Tracker API
+  version: 0.1.0
+  description: REST API for the Personal Tracker expense and budget tracking app.
+servers:
+  - url: http://localhost:4000
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+  - name: Categories
+  - name: Expenses
+  - name: Budgets
+  - name: Recurring Expenses
+  - name: Notifications
+  - name: Savings Goals
+  - name: Households
+  - name: Users
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create an account with email + password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupInput'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Email or phone number already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in with email + password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Exchange a refresh token for a new access + refresh token pair
+      description: Refresh tokens rotate on use — the token supplied is invalidated once a new pair is issued.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshInput'
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke a refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshInput'
+      responses:
+        '204':
+          description: Logged out
+
+  /categories:
+    post:
+      tags: [Categories]
+      summary: Create a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '409':
+          description: A category with this name already exists
+    get:
+      tags: [Categories]
+      summary: List your categories
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+  /categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [Categories]
+      summary: Get a category
+      responses:
+        '200':
+          description: Category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Categories]
+      summary: Update a category
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '200':
+          description: Updated category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Categories]
+      summary: Soft-delete a category
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get the current user's profile
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    patch:
+      tags: [Users]
+      summary: Update the current user's currency preference
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMeInput'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /expenses:
+    post:
+      tags: [Expenses]
+      summary: Log an expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseInput'
+      responses:
+        '201':
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+    get:
+      tags: [Expenses]
+      summary: List your expenses
+      parameters:
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Expense'
+
+  /expenses/export:
+    get:
+      tags: [Expenses]
+      summary: Export expenses as CSV or PDF
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [csv, pdf]
+            default: csv
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: File download
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /expenses/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [Expenses]
+      summary: Get an expense
+      responses:
+        '200':
+          description: Expense
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Expenses]
+      summary: Update an expense
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseInput'
+      responses:
+        '200':
+          description: Updated expense
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Expenses]
+      summary: Soft-delete an expense
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /budgets:
+    post:
+      tags: [Budgets]
+      summary: Create a monthly budget (overall or per-category)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BudgetInput'
+      responses:
+        '201':
+          description: Budget created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '409':
+          description: A budget already exists for this category and period
+    get:
+      tags: [Budgets]
+      summary: List your budgets
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Budget'
+
+  /budgets/summary:
+    get:
+      tags: [Budgets]
+      summary: Budget vs. actual spending for a month
+      description: Defaults to the current UTC month/year when month/year are omitted.
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budget vs. actual summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BudgetSummary'
+
+  /budgets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [Budgets]
+      summary: Get a budget
+      responses:
+        '200':
+          description: Budget
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Budgets]
+      summary: Update a budget's amount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  minimum: 0.01
+      responses:
+        '200':
+          description: Updated budget
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Budget'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Budgets]
+      summary: Soft-delete a budget
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /recurring-expenses:
+    post:
+      tags: [Recurring Expenses]
+      summary: Create a recurring expense rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringExpenseInput'
+      responses:
+        '201':
+          description: Recurring expense created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringExpense'
+    get:
+      tags: [Recurring Expenses]
+      summary: List your recurring expense rules
+      responses:
+        '200':
+          description: Recurring expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecurringExpense'
+
+  /recurring-expenses/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [Recurring Expenses]
+      summary: Get a recurring expense rule
+      responses:
+        '200':
+          description: Recurring expense
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringExpense'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Recurring Expenses]
+      summary: Update a recurring expense rule (including pausing via isActive)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringExpenseUpdateInput'
+      responses:
+        '200':
+          description: Updated recurring expense
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringExpense'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Recurring Expenses]
+      summary: Soft-delete a recurring expense rule
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications:
+    post:
+      tags: [Notifications]
+      summary: Create a notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationInput'
+      responses:
+        '201':
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+    get:
+      tags: [Notifications]
+      summary: List your notifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+
+  /notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      responses:
+        '204':
+          description: Marked as read
+
+  /notifications/{id}/read:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    patch:
+      tags: [Notifications]
+      summary: Mark one notification as read
+      responses:
+        '200':
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    delete:
+      tags: [Notifications]
+      summary: Delete a notification
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /savings-goals:
+    post:
+      tags: [Savings Goals]
+      summary: Create a savings goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavingsGoalInput'
+      responses:
+        '201':
+          description: Savings goal created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+    get:
+      tags: [Savings Goals]
+      summary: List your savings goals
+      responses:
+        '200':
+          description: Savings goals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SavingsGoal'
+
+  /savings-goals/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [Savings Goals]
+      summary: Get a savings goal
+      responses:
+        '200':
+          description: Savings goal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Savings Goals]
+      summary: Update a savings goal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavingsGoalUpdateInput'
+      responses:
+        '200':
+          description: Updated savings goal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Savings Goals]
+      summary: Soft-delete a savings goal
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /savings-goals/{id}/contribute:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    post:
+      tags: [Savings Goals]
+      summary: Add (or, with a negative amount, withdraw) funds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  description: Positive to contribute, negative to withdraw
+      responses:
+        '200':
+          description: Updated savings goal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavingsGoal'
+        '400':
+          description: Would take the balance below 0
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /households:
+    post:
+      tags: [Households]
+      summary: Create a household (creator becomes owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Household created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Household'
+    get:
+      tags: [Households]
+      summary: List households you belong to
+      responses:
+        '200':
+          description: Households
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Household'
+
+  /households/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [Households]
+      summary: Get a household (members only)
+      responses:
+        '200':
+          description: Household
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Household'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Households]
+      summary: Soft-delete a household (owner only)
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: Not the household owner
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /households/{id}/members:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    post:
+      tags: [Households]
+      summary: Add a member by email (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '201':
+          description: Updated household
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Household'
+        '403':
+          description: Not the household owner
+        '404':
+          description: Household not found, or no user with that email
+
+  /households/{id}/members/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [Households]
+      summary: Remove a member (owner, or the member removing themselves)
+      responses:
+        '204':
+          description: Removed
+        '400':
+          description: The owner cannot be removed this way
+        '403':
+          description: Not permitted to remove this member
+
+  /households/{id}/budgets:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    post:
+      tags: [Households]
+      summary: Create the shared household budget for a month (any member)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, month, year]
+              properties:
+                amount:
+                  type: number
+                  minimum: 0.01
+                month:
+                  type: integer
+                  minimum: 1
+                  maximum: 12
+                year:
+                  type: integer
+      responses:
+        '201':
+          description: Household budget created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdBudget'
+        '409':
+          description: A household budget already exists for this period
+    get:
+      tags: [Households]
+      summary: List the household's budgets
+      responses:
+        '200':
+          description: Household budgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HouseholdBudget'
+
+  /households/{id}/budgets/summary:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [Households]
+      summary: Budget vs. actual spend across all household members for a month
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Household budget summary, broken down per member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdBudgetSummary'
+
+  /households/{id}/budgets/{budgetId}:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+      - name: budgetId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [Households]
+      summary: Update the household budget's amount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  minimum: 0.01
+      responses:
+        '200':
+          description: Updated household budget
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdBudget'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Households]
+      summary: Soft-delete a household budget
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Validation failed
+              errors:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+    NotFound:
+      description: Resource not found or not owned by the caller
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorMessage'
+
+  schemas:
+    ErrorMessage:
+      type: object
+      properties:
+        message:
+          type: string
+
+    SignupInput:
+      type: object
+      required: [firstName, lastName, phoneNumber, email, password]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    RefreshInput:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    TokenPair:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+          nullable: true
+        currency:
+          type: string
+          enum: [USD, NGN]
+
+    UpdateMeInput:
+      type: object
+      required: [currency]
+      properties:
+        currency:
+          type: string
+          enum: [USD, NGN]
+
+    AuthResult:
+      allOf:
+        - $ref: '#/components/schemas/TokenPair'
+        - type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+
+    CategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        icon:
+          type: string
+        color:
+          type: string
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        icon:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ExpenseInput:
+      type: object
+      required: [categoryId, amount, date]
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          minimum: 0.01
+        description:
+          type: string
+        date:
+          type: string
+          format: date-time
+
+    Expense:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+          description: Decimal amount, serialized as a string
+        description:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date-time
+        recurringExpenseId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    BudgetInput:
+      type: object
+      required: [amount, month, year]
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Omit or set null for an overall (non-category) monthly budget
+        amount:
+          type: number
+          minimum: 0.01
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        year:
+          type: integer
+
+    Budget:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: string
+        month:
+          type: integer
+        year:
+          type: integer
+        lastNotifiedThreshold:
+          type: integer
+          nullable: true
+          description: Highest of 80/100/120 already notified for this budget period
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    BudgetSummary:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        overall:
+          $ref: '#/components/schemas/BudgetSummaryLine'
+        categories:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/BudgetSummaryLine'
+              - type: object
+                properties:
+                  categoryId:
+                    type: string
+                    format: uuid
+                  categoryName:
+                    type: string
+
+    BudgetSummaryLine:
+      type: object
+      properties:
+        budgetAmount:
+          type: number
+          nullable: true
+        actualSpent:
+          type: number
+        remaining:
+          type: number
+          nullable: true
+        percentUsed:
+          type: number
+          nullable: true
+
+    RecurringExpenseInput:
+      type: object
+      required: [categoryId, amount, frequency, startDate]
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          minimum: 0.01
+        description:
+          type: string
+        frequency:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY, YEARLY]
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+
+    RecurringExpenseUpdateInput:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          minimum: 0.01
+        description:
+          type: string
+        frequency:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY, YEARLY]
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+
+    RecurringExpense:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+        description:
+          type: string
+          nullable: true
+        frequency:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY, YEARLY]
+        startDate:
+          type: string
+          format: date-time
+        nextRunDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    NotificationInput:
+      type: object
+      required: [type, title, message]
+      properties:
+        type:
+          type: string
+          enum: [BUDGET_THRESHOLD, RECURRING_EXPENSE, SYSTEM]
+        title:
+          type: string
+        message:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [BUDGET_THRESHOLD, RECURRING_EXPENSE, SYSTEM]
+        title:
+          type: string
+        message:
+          type: string
+        isRead:
+          type: boolean
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+
+    SavingsGoalInput:
+      type: object
+      required: [name, targetAmount]
+      properties:
+        name:
+          type: string
+        targetAmount:
+          type: number
+          minimum: 0.01
+        targetDate:
+          type: string
+          format: date-time
+
+    SavingsGoalUpdateInput:
+      type: object
+      properties:
+        name:
+          type: string
+        targetAmount:
+          type: number
+          minimum: 0.01
+        targetDate:
+          type: string
+          format: date-time
+          nullable: true
+
+    SavingsGoal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        targetAmount:
+          type: string
+        currentAmount:
+          type: string
+        targetDate:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    HouseholdMemberUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+
+    HouseholdMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        householdId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [OWNER, MEMBER]
+        joinedAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/HouseholdMemberUser'
+
+    Household:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/HouseholdMember'
+
+    HouseholdBudget:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        householdId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+        month:
+          type: integer
+        year:
+          type: integer
+        lastNotifiedThreshold:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    HouseholdBudgetSummary:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        budgetAmount:
+          type: number
+          nullable: true
+        actualSpent:
+          type: number
+        remaining:
+          type: number
+          nullable: true
+        percentUsed:
+          type: number
+          nullable: true
+        byMember:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+                format: uuid
+              name:
+                type: string
+              spent:
+                type: number

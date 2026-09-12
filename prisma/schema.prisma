@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum NotificationType {
+  BUDGET_THRESHOLD
+  RECURRING_EXPENSE
+  SYSTEM
+}
+
+enum AuthProvider {
+  GOOGLE
+  APPLE
+}
+
+enum CurrencyCode {
+  USD
+  NGN
+}
+
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String?
+  firstName    String
+  lastName     String
+  phoneNumber  String?      @unique
+  currency     CurrencyCode @default(USD)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  categories           Category[]
+  expenses             Expense[]
+  budgets              Budget[]
+  recurringExpenses    RecurringExpense[]
+  notifications        Notification[]
+  oauthAccounts        OAuthAccount[]
+  refreshTokens        RefreshToken[]
+  savingsGoals         SavingsGoal[]
+  ownedHouseholds      Household[]
+  householdMemberships HouseholdMember[]
+
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model OAuthAccount {
+  id                String       @id @default(uuid())
+  userId            String
+  provider          AuthProvider
+  providerAccountId String
+  createdAt         DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("oauth_accounts")
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  userId    String
+  name      String
+  icon      String?
+  color     String?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses          Expense[]
+  budgets           Budget[]
+  recurringExpenses RecurringExpense[]
+
+  @@unique([userId, name])
+  @@index([deletedAt])
+  @@map("categories")
+}
+
+model Expense {
+  id                 String    @id @default(uuid())
+  userId             String
+  categoryId         String
+  amount             Decimal   @db.Decimal(12, 2)
+  description        String?
+  date               DateTime
+  recurringExpenseId String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category         Category          @relation(fields: [categoryId], references: [id])
+  recurringExpense RecurringExpense? @relation(fields: [recurringExpenseId], references: [id])
+
+  @@index([userId, date])
+  @@index([userId, deletedAt])
+  @@map("expenses")
+}
+
+model Budget {
+  id                    String    @id @default(uuid())
+  userId                String
+  categoryId            String?
+  amount                Decimal   @db.Decimal(12, 2)
+  month                 Int
+  year                  Int
+  lastNotifiedThreshold Int?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id])
+
+  @@unique([userId, categoryId, month, year])
+  @@index([deletedAt])
+  @@map("budgets")
+}
+
+model RecurringExpense {
+  id          String              @id @default(uuid())
+  userId      String
+  categoryId  String
+  amount      Decimal             @db.Decimal(12, 2)
+  description String?
+  frequency   RecurrenceFrequency
+  startDate   DateTime
+  nextRunDate DateTime
+  endDate     DateTime?
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category  @relation(fields: [categoryId], references: [id])
+  expenses Expense[]
+
+  @@index([nextRunDate, isActive])
+  @@index([deletedAt])
+  @@map("recurring_expenses")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model SavingsGoal {
+  id            String    @id @default(uuid())
+  userId        String
+  name          String
+  targetAmount  Decimal   @db.Decimal(12, 2)
+  currentAmount Decimal   @default(0) @db.Decimal(12, 2)
+  targetDate    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([deletedAt])
+  @@map("savings_goals")
+}
+
+enum HouseholdRole {
+  OWNER
+  MEMBER
+}
+
+model Household {
+  id        String    @id @default(uuid())
+  name      String
+  ownerId   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  owner   User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members HouseholdMember[]
+  budgets HouseholdBudget[]
+
+  @@index([deletedAt])
+  @@map("households")
+}
+
+model HouseholdMember {
+  id          String        @id @default(uuid())
+  householdId String
+  userId      String
+  role        HouseholdRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, userId])
+  @@map("household_members")
+}
+
+model HouseholdBudget {
+  id                    String    @id @default(uuid())
+  householdId           String
+  amount                Decimal   @db.Decimal(12, 2)
+  month                 Int
+  year                  Int
+  lastNotifiedThreshold Int?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, month, year])
+  @@index([deletedAt])
+  @@map("household_budgets")
+}
