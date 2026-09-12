@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && echo '--- DIAGNOSTIC ---' && cat tsconfig.json && echo '--- tsc version ---' && ./node_modules/.bin/tsc --version && echo '--- end diagnostic ---' && npm run build
     startCommand: npm start
     healthCheckPath: /health
     envVars:
