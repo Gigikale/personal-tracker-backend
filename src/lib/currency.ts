@@ -9,5 +9,6 @@ export function currencySymbol(code: string): string {
 
 export function formatMoney(amount: number, code: string): string {
   const sign = amount < 0 ? '-' : '';
-  return `${sign}${currencySymbol(code)}${Math.abs(amount).toFixed(2)}`;
+  const formatted = Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${sign}${currencySymbol(code)}${formatted}`;
 }
