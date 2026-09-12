@@ -8,6 +8,7 @@ import {
   createHouseholdSchema,
   householdBudgetSummaryQuerySchema,
   updateHouseholdBudgetSchema,
+  updateHouseholdSchema,
 } from './household.schemas';
 
 export const householdRouter = Router();
@@ -33,6 +34,15 @@ householdRouter.get(
   '/:id',
   asyncHandler(async (req, res) => {
     const household = await householdService.getHousehold(req.userId!, req.params.id);
+    res.status(200).json(household);
+  }),
+);
+
+householdRouter.patch(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const input = updateHouseholdSchema.parse(req.body);
+    const household = await householdService.updateHousehold(req.userId!, req.params.id, input);
     res.status(200).json(household);
   }),
 );

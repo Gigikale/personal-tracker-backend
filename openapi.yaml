@@ -770,6 +770,30 @@ paths:
                 $ref: '#/components/schemas/Household'
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Households]
+      summary: Rename a household (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Updated household
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Household'
+        '403':
+          description: Not the household owner
+        '404':
+          $ref: '#/components/responses/NotFound'
     delete:
       tags: [Households]
       summary: Soft-delete a household (owner only)

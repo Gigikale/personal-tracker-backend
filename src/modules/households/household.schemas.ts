@@ -4,6 +4,10 @@ export const createHouseholdSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
 });
 
+export const updateHouseholdSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+});
+
 export const addHouseholdMemberSchema = z.object({
   email: z.string().trim().email('Enter a valid email'),
 });
@@ -24,6 +28,7 @@ export const householdBudgetSummaryQuerySchema = z.object({
 });
 
 export type CreateHouseholdInput = z.infer<typeof createHouseholdSchema>;
+export type UpdateHouseholdInput = z.infer<typeof updateHouseholdSchema>;
 export type AddHouseholdMemberInput = z.infer<typeof addHouseholdMemberSchema>;
 export type CreateHouseholdBudgetInput = z.infer<typeof createHouseholdBudgetSchema>;
 export type UpdateHouseholdBudgetInput = z.infer<typeof updateHouseholdBudgetSchema>;

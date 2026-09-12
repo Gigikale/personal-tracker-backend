@@ -9,6 +9,7 @@ import type {
   CreateHouseholdInput,
   HouseholdBudgetSummaryQuery,
   UpdateHouseholdBudgetInput,
+  UpdateHouseholdInput,
 } from './household.schemas';
 
 const THRESHOLDS = [120, 100, 80] as const;
@@ -92,6 +93,15 @@ export async function removeMember(userId: string, householdId: string, targetUs
   }
 
   await prisma.householdMember.deleteMany({ where: { householdId, userId: targetUserId } });
+}
+
+export async function updateHousehold(userId: string, householdId: string, input: UpdateHouseholdInput) {
+  await assertOwner(userId, householdId);
+  return prisma.household.update({
+    where: { id: householdId },
+    data: { name: input.name },
+    include: { members: { include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } } },
+  });
 }
 
 export async function deleteHousehold(userId: string, householdId: string): Promise<void> {

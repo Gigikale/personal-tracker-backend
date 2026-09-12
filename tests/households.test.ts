@@ -57,6 +57,50 @@ it('rejects a non-owner trying to add members', async () => {
   expect(res.status).toBe(403);
 });
 
+it('lets the owner rename a household but rejects a non-owner', async () => {
+  const owner = await signupUser(app);
+  const member = await signupUser(app, { email: 'member@example.com' });
+
+  const household = await request(app).post('/households').set(auth(owner.accessToken)).send({ name: 'Home' });
+  await request(app)
+    .post(`/households/${household.body.id}/members`)
+    .set(auth(owner.accessToken))
+    .send({ email: 'member@example.com' });
+
+  const rejected = await request(app)
+    .patch(`/households/${household.body.id}`)
+    .set(auth(member.accessToken))
+    .send({ name: 'Hijacked name' });
+  expect(rejected.status).toBe(403);
+
+  const renamed = await request(app)
+    .patch(`/households/${household.body.id}`)
+    .set(auth(owner.accessToken))
+    .send({ name: 'Our home' });
+  expect(renamed.status).toBe(200);
+  expect(renamed.body.name).toBe('Our home');
+});
+
+it('lets the owner delete a household but rejects a non-owner', async () => {
+  const owner = await signupUser(app);
+  const member = await signupUser(app, { email: 'member@example.com' });
+
+  const household = await request(app).post('/households').set(auth(owner.accessToken)).send({ name: 'Home' });
+  await request(app)
+    .post(`/households/${household.body.id}/members`)
+    .set(auth(owner.accessToken))
+    .send({ email: 'member@example.com' });
+
+  const rejected = await request(app).delete(`/households/${household.body.id}`).set(auth(member.accessToken));
+  expect(rejected.status).toBe(403);
+
+  const deleted = await request(app).delete(`/households/${household.body.id}`).set(auth(owner.accessToken));
+  expect(deleted.status).toBe(204);
+
+  const listAfter = await request(app).get('/households').set(auth(owner.accessToken));
+  expect(listAfter.body).toHaveLength(0);
+});
+
 it('hides the household from non-members entirely', async () => {
   const owner = await signupUser(app);
   const outsider = await signupUser(app);
