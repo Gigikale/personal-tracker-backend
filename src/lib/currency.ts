@@ -8,5 +8,6 @@ export function currencySymbol(code: string): string {
 }
 
 export function formatMoney(amount: number, code: string): string {
-  return `${currencySymbol(code)}${amount.toFixed(2)}`;
+  const sign = amount < 0 ? '-' : '';
+  return `${sign}${currencySymbol(code)}${Math.abs(amount).toFixed(2)}`;
 }
