@@ -27,6 +27,10 @@ function formatDateLabel(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function formatAmount(n: number): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function buildPeriodLabel(
   from: Date | undefined,
   to: Date | undefined,
@@ -105,14 +109,14 @@ export function expensesToPdfBuffer(expenses: ExportableExpense[], meta: ExportM
       const amount = Number(expense.amount);
       total += amount;
       drawRow(
-        [expense.date.toISOString().slice(0, 10), expense.category.name, expense.description ?? '', amount.toFixed(2)],
+        [expense.date.toISOString().slice(0, 10), expense.category.name, expense.description ?? '', formatAmount(amount)],
         false,
       );
     }
 
     y += 6;
     doc.moveTo(startX, y - 4).lineTo(startX + 460, y - 4).stroke();
-    drawRow(['', '', 'Total', total.toFixed(2)], true);
+    drawRow(['', '', 'Total', formatAmount(total)], true);
 
     doc.end();
   });

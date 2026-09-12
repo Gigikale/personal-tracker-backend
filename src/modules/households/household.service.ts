@@ -202,6 +202,7 @@ export async function getHouseholdBudgetSummary(
   const actualSpent = Number(totalActual._sum.amount ?? 0);
 
   return {
+    budgetId: budget?.id ?? null,
     month,
     year,
     budgetAmount,

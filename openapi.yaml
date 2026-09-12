@@ -1539,6 +1539,10 @@ components:
     HouseholdBudgetSummary:
       type: object
       properties:
+        budgetId:
+          type: string
+          format: uuid
+          nullable: true
         month:
           type: integer
         year:

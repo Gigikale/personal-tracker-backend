@@ -153,6 +153,47 @@ it('aggregates spend across all household members for the budget summary', async
   expect(summary.body.byMember).toHaveLength(2);
 });
 
+it('exposes budgetId in the summary and lets any member update or delete the shared budget', async () => {
+  const owner = await signupUser(app);
+  const partner = await signupUser(app, { email: 'partner3@example.com' });
+
+  const household = await request(app).post('/households').set(auth(owner.accessToken)).send({ name: 'Home' });
+  await request(app)
+    .post(`/households/${household.body.id}/members`)
+    .set(auth(owner.accessToken))
+    .send({ email: 'partner3@example.com' });
+
+  const month = new Date().getUTCMonth() + 1;
+  const year = new Date().getUTCFullYear();
+  const created = await request(app)
+    .post(`/households/${household.body.id}/budgets`)
+    .set(auth(owner.accessToken))
+    .send({ amount: 500, month, year });
+
+  const summaryBefore = await request(app)
+    .get(`/households/${household.body.id}/budgets/summary`)
+    .set(auth(owner.accessToken));
+  expect(summaryBefore.body.budgetId).toBe(created.body.id);
+
+  const updated = await request(app)
+    .patch(`/households/${household.body.id}/budgets/${created.body.id}`)
+    .set(auth(partner.accessToken))
+    .send({ amount: 750 });
+  expect(updated.status).toBe(200);
+  expect(Number(updated.body.amount)).toBe(750);
+
+  const deleted = await request(app)
+    .delete(`/households/${household.body.id}/budgets/${created.body.id}`)
+    .set(auth(partner.accessToken));
+  expect(deleted.status).toBe(204);
+
+  const summaryAfter = await request(app)
+    .get(`/households/${household.body.id}/budgets/summary`)
+    .set(auth(owner.accessToken));
+  expect(summaryAfter.body.budgetId).toBeNull();
+  expect(summaryAfter.body.budgetAmount).toBeNull();
+});
+
 it('notifies every household member when the shared budget crosses a threshold', async () => {
   const owner = await signupUser(app, { email: 'owner3@example.com' });
   const partner = await signupUser(app, { email: 'partner3@example.com' });
