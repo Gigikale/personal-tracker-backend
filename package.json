@@ -43,6 +43,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
+    "@sentry/node": "^10.74.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -56,6 +57,7 @@
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "prisma": "^5.20.0",
+    "resend": "^6.28.0",
     "swagger-ui-express": "^5.0.1",
     "ws": "^8.18.0",
     "zod": "^3.23.8"

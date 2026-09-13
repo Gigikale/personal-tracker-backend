@@ -22,6 +22,17 @@ export const refreshSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required').max(1000, 'Invalid refresh token'),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email('Enter a valid email').max(254, 'Email is too long'),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Reset token is required').max(200, 'Invalid reset token'),
+  password: z.string().min(6, 'Use at least 6 characters').max(128, 'Use at most 128 characters'),
+});
+
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

@@ -1,9 +1,18 @@
 import { Router } from 'express';
 
+import { env } from '../../config/env';
 import { asyncHandler } from '../../lib/asyncHandler';
-import { loginRateLimiter, logoutRateLimiter, refreshRateLimiter, signupRateLimiter } from '../../middleware/rateLimit';
+import { HttpError } from '../../lib/errors';
+import { buildGoogleAuthUrl, exchangeCodeForGoogleProfile } from '../../lib/googleOAuth';
+import {
+  loginRateLimiter,
+  logoutRateLimiter,
+  passwordResetRateLimiter,
+  refreshRateLimiter,
+  signupRateLimiter,
+} from '../../middleware/rateLimit';
 import * as authService from './auth.service';
-import { loginSchema, refreshSchema, signupSchema } from './auth.schemas';
+import { forgotPasswordSchema, loginSchema, refreshSchema, resetPasswordSchema, signupSchema } from './auth.schemas';
 
 export const authRouter = Router();
 
@@ -44,5 +53,55 @@ authRouter.post(
     const { refreshToken } = refreshSchema.parse(req.body);
     await authService.logout(refreshToken);
     res.status(204).send();
+  }),
+);
+
+authRouter.post(
+  '/forgot-password',
+  passwordResetRateLimiter,
+  asyncHandler(async (req, res) => {
+    const input = forgotPasswordSchema.parse(req.body);
+    await authService.requestPasswordReset(input);
+    res.status(204).send();
+  }),
+);
+
+authRouter.post(
+  '/reset-password',
+  passwordResetRateLimiter,
+  asyncHandler(async (req, res) => {
+    const input = resetPasswordSchema.parse(req.body);
+    await authService.resetPassword(input);
+    res.status(204).send();
+  }),
+);
+
+authRouter.get(
+  '/google',
+  asyncHandler(async (_req, res) => {
+    if (!env.googleClientId || !env.googleClientSecret) {
+      throw new HttpError(503, 'Google sign-in is not configured');
+    }
+    res.redirect(buildGoogleAuthUrl());
+  }),
+);
+
+authRouter.get(
+  '/google/callback',
+  asyncHandler(async (req, res) => {
+    const code = typeof req.query.code === 'string' ? req.query.code : null;
+    if (!code) {
+      res.redirect(`${env.frontendUrl}/login?error=oauth_failed`);
+      return;
+    }
+
+    try {
+      const profile = await exchangeCodeForGoogleProfile(code);
+      const tokens = await authService.loginWithGoogle(profile);
+      const params = new URLSearchParams({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
+      res.redirect(`${env.frontendUrl}/auth/callback#${params.toString()}`);
+    } catch {
+      res.redirect(`${env.frontendUrl}/login?error=oauth_failed`);
+    }
   }),
 );

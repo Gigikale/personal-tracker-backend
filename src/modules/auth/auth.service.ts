@@ -1,9 +1,13 @@
 import { prisma } from '../../prisma';
+import { env } from '../../config/env';
 import { HttpError } from '../../lib/errors';
+import { sendPasswordResetEmail } from '../../lib/email';
+import type { GoogleProfile } from '../../lib/googleOAuth';
 import { signAccessToken } from '../../lib/jwt';
 import { hashPassword, verifyPassword } from '../../lib/password';
+import { generatePasswordResetToken, hashPasswordResetToken } from '../../lib/passwordResetToken';
 import { generateRefreshToken, hashRefreshToken } from '../../lib/refreshToken';
-import type { LoginInput, SignupInput } from './auth.schemas';
+import type { ForgotPasswordInput, LoginInput, ResetPasswordInput, SignupInput } from './auth.schemas';
 
 interface PublicUser {
   id: string;
@@ -124,4 +128,69 @@ export async function logout(refreshToken: string): Promise<void> {
     where: { tokenHash, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+}
+
+export async function requestPasswordReset(input: ForgotPasswordInput): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  // Always behave the same whether or not the account exists, so callers can't use this
+  // endpoint to discover which emails have accounts.
+  if (!user || !user.passwordHash) return;
+
+  const { token, tokenHash, expiresAt } = generatePasswordResetToken();
+  await prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash, expiresAt } });
+
+  const resetUrl = `${env.frontendUrl}/reset-password?token=${token}`;
+  await sendPasswordResetEmail(user.email, resetUrl);
+}
+
+export async function resetPassword(input: ResetPasswordInput): Promise<void> {
+  const tokenHash = hashPasswordResetToken(input.token);
+  const stored = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+
+  if (!stored || stored.usedAt || stored.expiresAt < new Date()) {
+    throw new HttpError(400, 'This reset link is invalid or has expired');
+  }
+
+  const passwordHash = await hashPassword(input.password);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: stored.userId }, data: { passwordHash } }),
+    prisma.passwordResetToken.update({ where: { id: stored.id }, data: { usedAt: new Date() } }),
+    // A password reset should end every other active session.
+    prisma.refreshToken.updateMany({
+      where: { userId: stored.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+  ]);
+}
+
+export async function loginWithGoogle(profile: GoogleProfile): Promise<{ accessToken: string; refreshToken: string }> {
+  const existingAccount = await prisma.oAuthAccount.findUnique({
+    where: { provider_providerAccountId: { provider: 'GOOGLE', providerAccountId: profile.googleId } },
+  });
+  if (existingAccount) {
+    return issueTokens(existingAccount.userId);
+  }
+
+  const existingUser = await prisma.user.findUnique({ where: { email: profile.email } });
+  if (existingUser) {
+    // Only auto-link to an existing password account when Google has verified the email,
+    // otherwise someone could add an unverified address they don't own to take over an account.
+    if (!profile.emailVerified) {
+      throw new HttpError(409, 'An account with this email already exists. Log in with your password instead.');
+    }
+    await prisma.oAuthAccount.create({
+      data: { userId: existingUser.id, provider: 'GOOGLE', providerAccountId: profile.googleId },
+    });
+    return issueTokens(existingUser.id);
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      email: profile.email,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      oauthAccounts: { create: { provider: 'GOOGLE', providerAccountId: profile.googleId } },
+    },
+  });
+  return issueTokens(user.id);
 }

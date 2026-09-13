@@ -19,4 +19,11 @@ export const env = {
   // Comma-separated list of allowed origins, e.g. "https://app.example.com,https://staging.example.com".
   // Left unset, CORS stays open to any origin (fine for local dev).
   corsOrigins: process.env.CORS_ORIGIN?.split(',').map((s) => s.trim()).filter(Boolean),
+  sentryDsn: process.env.SENTRY_DSN,
+  resendApiKey: process.env.RESEND_API_KEY,
+  passwordResetFromEmail: process.env.PASSWORD_RESET_FROM_EMAIL ?? 'Personal Tracker <onboarding@resend.dev>',
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+  googleClientId: process.env.GOOGLE_CLIENT_ID,
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  backendUrl: process.env.BACKEND_URL ?? `http://localhost:${process.env.PORT ?? 4000}`,
 };

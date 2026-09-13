@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 
@@ -16,5 +17,6 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   logger.error({ err, method: req.method, path: req.path }, 'Unhandled error');
+  Sentry.captureException(err);
   res.status(500).json({ message: 'Internal server error' });
 }

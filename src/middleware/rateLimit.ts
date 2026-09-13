@@ -37,3 +37,12 @@ export const logoutRateLimiter = rateLimit({
   skip: skipInTests,
   message: { message: 'Too many requests. Try again later.' },
 });
+
+export const passwordResetRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTests,
+  message: { message: 'Too many password reset attempts. Try again later.' },
+});

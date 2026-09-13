@@ -1,3 +1,5 @@
+import './instrument';
+
 import { createServer } from 'http';
 
 import { createApp } from './app';
