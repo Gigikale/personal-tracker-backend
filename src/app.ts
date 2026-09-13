@@ -1,10 +1,12 @@
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 
 import { loadOpenApiSpec } from './docs';
 import { env } from './config/env';
+import { logger } from './lib/logger';
 import { errorHandler } from './middleware/errorHandler';
 import { requireAuth } from './middleware/requireAuth';
 import { authRouter } from './modules/auth/auth.routes';
@@ -23,6 +25,12 @@ export function createApp() {
 
   app.use(helmet());
   app.use(cors({ origin: env.corsOrigins ?? true }));
+  app.use(
+    pinoHttp({
+      logger,
+      autoLogging: { ignore: (req) => req.url === '/health' },
+    }),
+  );
   app.use(express.json());
 
   app.use('/health', healthRouter);

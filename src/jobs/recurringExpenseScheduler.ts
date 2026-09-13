@@ -3,6 +3,7 @@ import type { RecurrenceFrequency } from '@prisma/client';
 
 import { prisma } from '../prisma';
 import { formatMoney } from '../lib/currency';
+import { logger } from '../lib/logger';
 import { syncBudgetThresholds } from '../modules/budgets/budget.service';
 import { createNotification } from '../modules/notifications/notification.service';
 
@@ -76,9 +77,9 @@ export async function runRecurringExpenseSweep(): Promise<void> {
 
 export function startRecurringExpenseScheduler(): void {
   cron.schedule('0 * * * *', () => {
-    runRecurringExpenseSweep().catch((err) => console.error('Recurring expense sweep failed', err));
+    runRecurringExpenseSweep().catch((err) => logger.error({ err }, 'Recurring expense sweep failed'));
   });
 
   // Catch up on anything due immediately on boot, rather than waiting for the next hour mark.
-  runRecurringExpenseSweep().catch((err) => console.error('Recurring expense sweep failed', err));
+  runRecurringExpenseSweep().catch((err) => logger.error({ err }, 'Recurring expense sweep failed'));
 }
