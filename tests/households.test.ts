@@ -194,6 +194,30 @@ it('exposes budgetId in the summary and lets any member update or delete the sha
   expect(summaryAfter.body.budgetAmount).toBeNull();
 });
 
+it('flags hasMixedCurrencies when household members use different currencies', async () => {
+  const owner = await signupUser(app, { email: 'owner4@example.com' });
+  const partner = await signupUser(app, { email: 'partner4@example.com' });
+
+  const household = await request(app).post('/households').set(auth(owner.accessToken)).send({ name: 'Home' });
+  await request(app)
+    .post(`/households/${household.body.id}/members`)
+    .set(auth(owner.accessToken))
+    .send({ email: 'partner4@example.com' });
+
+  const sameCurrency = await request(app)
+    .get(`/households/${household.body.id}/budgets/summary`)
+    .set(auth(owner.accessToken));
+  expect(sameCurrency.body.hasMixedCurrencies).toBe(false);
+  expect(sameCurrency.body.byMember.every((m: { currency: string }) => m.currency === 'USD')).toBe(true);
+
+  await request(app).patch('/users/me').set(auth(partner.accessToken)).send({ currency: 'NGN' });
+
+  const mixed = await request(app)
+    .get(`/households/${household.body.id}/budgets/summary`)
+    .set(auth(owner.accessToken));
+  expect(mixed.body.hasMixedCurrencies).toBe(true);
+});
+
 it('notifies every household member when the shared budget crosses a threshold', async () => {
   const owner = await signupUser(app, { email: 'owner3@example.com' });
   const partner = await signupUser(app, { email: 'partner3@example.com' });

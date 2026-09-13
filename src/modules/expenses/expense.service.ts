@@ -29,11 +29,24 @@ function buildExpenseWhere(userId: string, query: ListExpensesQuery): Prisma.Exp
   return where;
 }
 
-export function listExpenses(userId: string, query: ListExpensesQuery) {
-  return prisma.expense.findMany({
-    where: buildExpenseWhere(userId, query),
-    orderBy: { date: 'desc' },
-  });
+const DEFAULT_PAGE_SIZE = 200;
+
+export async function listExpenses(userId: string, query: ListExpensesQuery) {
+  const where = buildExpenseWhere(userId, query);
+  const limit = query.limit ?? DEFAULT_PAGE_SIZE;
+  const page = query.page ?? 1;
+
+  const [expenses, total] = await Promise.all([
+    prisma.expense.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.expense.count({ where }),
+  ]);
+
+  return { expenses, total, page, limit };
 }
 
 export function listExpensesForExport(userId: string, query: ListExpensesQuery) {

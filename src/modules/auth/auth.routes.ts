@@ -1,7 +1,7 @@
 import { Router } from 'express';
 
 import { asyncHandler } from '../../lib/asyncHandler';
-import { loginRateLimiter, signupRateLimiter } from '../../middleware/rateLimit';
+import { loginRateLimiter, logoutRateLimiter, refreshRateLimiter, signupRateLimiter } from '../../middleware/rateLimit';
 import * as authService from './auth.service';
 import { loginSchema, refreshSchema, signupSchema } from './auth.schemas';
 
@@ -29,6 +29,7 @@ authRouter.post(
 
 authRouter.post(
   '/refresh',
+  refreshRateLimiter,
   asyncHandler(async (req, res) => {
     const { refreshToken } = refreshSchema.parse(req.body);
     const tokens = await authService.refresh(refreshToken);
@@ -38,6 +39,7 @@ authRouter.post(
 
 authRouter.post(
   '/logout',
+  logoutRateLimiter,
   asyncHandler(async (req, res) => {
     const { refreshToken } = refreshSchema.parse(req.body);
     await authService.logout(refreshToken);

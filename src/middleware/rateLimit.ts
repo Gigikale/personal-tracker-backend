@@ -19,3 +19,21 @@ export const signupRateLimiter = rateLimit({
   skip: skipInTests,
   message: { message: 'Too many signup attempts. Try again later.' },
 });
+
+export const refreshRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTests,
+  message: { message: 'Too many token refresh attempts. Try again later.' },
+});
+
+export const logoutRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTests,
+  message: { message: 'Too many requests. Try again later.' },
+});

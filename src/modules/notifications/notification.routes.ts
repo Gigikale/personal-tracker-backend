@@ -19,7 +19,10 @@ notificationRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     const query = listNotificationsQuerySchema.parse(req.query);
-    const notifications = await notificationService.listNotifications(req.userId!, query);
+    const { notifications, total, page, limit } = await notificationService.listNotifications(req.userId!, query);
+    res.setHeader('X-Total-Count', String(total));
+    res.setHeader('X-Page', String(page));
+    res.setHeader('X-Limit', String(limit));
     res.status(200).json(notifications);
   }),
 );

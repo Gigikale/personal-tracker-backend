@@ -1,25 +1,30 @@
 import { z } from 'zod';
 
 export const createHouseholdSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name is too long'),
 });
 
 export const updateHouseholdSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name is too long'),
 });
 
 export const addHouseholdMemberSchema = z.object({
-  email: z.string().trim().email('Enter a valid email'),
+  email: z.string().trim().email('Enter a valid email').max(254, 'Email is too long'),
 });
 
+const householdBudgetAmount = z.coerce
+  .number()
+  .positive('Amount must be greater than 0')
+  .max(999999999.99, 'Amount is too large');
+
 export const createHouseholdBudgetSchema = z.object({
-  amount: z.coerce.number().positive('Amount must be greater than 0'),
+  amount: householdBudgetAmount,
   month: z.coerce.number().int().min(1).max(12),
   year: z.coerce.number().int().min(2000).max(2100),
 });
 
 export const updateHouseholdBudgetSchema = z.object({
-  amount: z.coerce.number().positive('Amount must be greater than 0').optional(),
+  amount: householdBudgetAmount.optional(),
 });
 
 export const householdBudgetSummaryQuerySchema = z.object({

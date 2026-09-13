@@ -73,11 +73,23 @@ describe('POST /auth/refresh', () => {
     expect(first.status).toBe(200);
     expect(first.body.refreshToken).not.toBe(refreshToken);
 
+    const second = await request(app).post('/auth/refresh').send({ refreshToken: first.body.refreshToken });
+    expect(second.status).toBe(200);
+  });
+
+  it('treats reuse of an already-rotated token as theft and revokes the whole session chain', async () => {
+    const { refreshToken } = await signupUser(app);
+
+    const first = await request(app).post('/auth/refresh').send({ refreshToken });
+    expect(first.status).toBe(200);
+
+    // Replaying the original (now-rotated-out) token looks like a stolen token.
     const reuse = await request(app).post('/auth/refresh').send({ refreshToken });
     expect(reuse.status).toBe(401);
 
-    const second = await request(app).post('/auth/refresh').send({ refreshToken: first.body.refreshToken });
-    expect(second.status).toBe(200);
+    // The legitimately-issued successor token should now be revoked too, forcing a fresh login.
+    const afterReuse = await request(app).post('/auth/refresh').send({ refreshToken: first.body.refreshToken });
+    expect(afterReuse.status).toBe(401);
   });
 });
 

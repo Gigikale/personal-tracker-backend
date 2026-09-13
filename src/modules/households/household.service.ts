@@ -179,7 +179,7 @@ export async function getHouseholdBudgetSummary(
     prisma.householdBudget.findFirst({ where: { householdId, month, year, deletedAt: null } }),
     prisma.householdMember.findMany({
       where: { householdId },
-      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      include: { user: { select: { id: true, firstName: true, lastName: true, currency: true } } },
     }),
   ]);
 
@@ -200,6 +200,8 @@ export async function getHouseholdBudgetSummary(
   const spentByUserId = new Map(byMember.map((b) => [b.userId, Number(b._sum.amount ?? 0)]));
   const budgetAmount = budget ? Number(budget.amount) : null;
   const actualSpent = Number(totalActual._sum.amount ?? 0);
+  const distinctCurrencies = new Set(members.map((m) => m.user.currency));
+  const hasMixedCurrencies = distinctCurrencies.size > 1;
 
   return {
     budgetId: budget?.id ?? null,
@@ -209,9 +211,11 @@ export async function getHouseholdBudgetSummary(
     actualSpent,
     remaining: budgetAmount !== null ? budgetAmount - actualSpent : null,
     percentUsed: budgetAmount ? Math.round((actualSpent / budgetAmount) * 1000) / 10 : null,
+    hasMixedCurrencies,
     byMember: members.map((m) => ({
       userId: m.userId,
       name: `${m.user.firstName} ${m.user.lastName}`,
+      currency: m.user.currency,
       spent: spentByUserId.get(m.userId) ?? 0,
     })),
   };

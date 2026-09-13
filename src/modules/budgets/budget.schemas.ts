@@ -1,14 +1,16 @@
 import { z } from 'zod';
 
+const budgetAmount = z.coerce.number().positive('Amount must be greater than 0').max(999999999.99, 'Amount is too large');
+
 export const createBudgetSchema = z.object({
   categoryId: z.string().uuid().nullable().optional(),
-  amount: z.coerce.number().positive('Amount must be greater than 0'),
+  amount: budgetAmount,
   month: z.coerce.number().int().min(1).max(12),
   year: z.coerce.number().int().min(2000).max(2100),
 });
 
 export const updateBudgetSchema = z.object({
-  amount: z.coerce.number().positive('Amount must be greater than 0').optional(),
+  amount: budgetAmount.optional(),
 });
 
 export const listBudgetsQuerySchema = z.object({

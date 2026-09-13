@@ -92,7 +92,21 @@ export async function refresh(refreshToken: string): Promise<{ accessToken: stri
   const tokenHash = hashRefreshToken(refreshToken);
   const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
 
-  if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
+  if (!stored) {
+    throw new HttpError(401, 'Invalid or expired refresh token');
+  }
+
+  if (stored.revokedAt) {
+    // This token was already rotated out — replaying it suggests it was stolen from an
+    // earlier point in the chain. Kill every other active session for this user as a precaution.
+    await prisma.refreshToken.updateMany({
+      where: { userId: stored.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    throw new HttpError(401, 'Session revoked due to a reused refresh token. Please log in again.');
+  }
+
+  if (stored.expiresAt < new Date()) {
     throw new HttpError(401, 'Invalid or expired refresh token');
   }
 

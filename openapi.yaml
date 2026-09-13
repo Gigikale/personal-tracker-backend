@@ -1558,6 +1558,9 @@ components:
         percentUsed:
           type: number
           nullable: true
+        hasMixedCurrencies:
+          type: boolean
+          description: True when household members have different currency preferences, meaning actualSpent/remaining/percentUsed sum raw amounts across currencies without conversion.
         byMember:
           type: array
           items:
@@ -1567,6 +1570,8 @@ components:
                 type: string
                 format: uuid
               name:
+                type: string
+              currency:
                 type: string
               spent:
                 type: number

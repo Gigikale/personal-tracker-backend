@@ -26,7 +26,10 @@ expenseRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     const query = listExpensesQuerySchema.parse(req.query);
-    const expenses = await expenseService.listExpenses(req.userId!, query);
+    const { expenses, total, page, limit } = await expenseService.listExpenses(req.userId!, query);
+    res.setHeader('X-Total-Count', String(total));
+    res.setHeader('X-Page', String(page));
+    res.setHeader('X-Limit', String(limit));
     res.status(200).json(expenses);
   }),
 );

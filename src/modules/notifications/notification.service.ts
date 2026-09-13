@@ -11,11 +11,24 @@ export async function createNotification(userId: string, input: CreateNotificati
   return notification;
 }
 
-export function listNotifications(userId: string, query: ListNotificationsQuery) {
-  return prisma.notification.findMany({
-    where: { userId, ...(query.unreadOnly ? { isRead: false } : {}) },
-    orderBy: { createdAt: 'desc' },
-  });
+const DEFAULT_PAGE_SIZE = 100;
+
+export async function listNotifications(userId: string, query: ListNotificationsQuery) {
+  const where = { userId, ...(query.unreadOnly ? { isRead: false } : {}) };
+  const limit = query.limit ?? DEFAULT_PAGE_SIZE;
+  const page = query.page ?? 1;
+
+  const [notifications, total] = await Promise.all([
+    prisma.notification.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.notification.count({ where }),
+  ]);
+
+  return { notifications, total, page, limit };
 }
 
 export async function getNotification(userId: string, id: string) {
