@@ -42,6 +42,25 @@ async function issueTokens(userId: string): Promise<{ accessToken: string; refre
   return { accessToken, refreshToken: token };
 }
 
+// Converts any pending household invites for this email into real memberships now that the
+// person has an account — see householdService.addMember, which creates these for emails
+// that didn't have an account yet at invite time.
+async function linkPendingHouseholdInvites(userId: string, email: string): Promise<void> {
+  const invites = await prisma.householdInvite.findMany({
+    where: { email, acceptedAt: null, expiresAt: { gt: new Date() } },
+  });
+  if (invites.length === 0) return;
+
+  await prisma.$transaction([
+    ...invites.map((invite) =>
+      prisma.householdMember.create({ data: { householdId: invite.householdId, userId, role: 'MEMBER' } }),
+    ),
+    ...invites.map((invite) =>
+      prisma.householdInvite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } }),
+    ),
+  ]);
+}
+
 export async function signup(input: SignupInput): Promise<AuthResult> {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
@@ -65,6 +84,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     select: publicUserSelect,
   });
 
+  await linkPendingHouseholdInvites(user.id, user.email);
   const tokens = await issueTokens(user.id);
   return { user, ...tokens };
 }
@@ -192,5 +212,6 @@ export async function loginWithGoogle(profile: GoogleProfile): Promise<{ accessT
       oauthAccounts: { create: { provider: 'GOOGLE', providerAccountId: profile.googleId } },
     },
   });
+  await linkPendingHouseholdInvites(user.id, user.email);
   return issueTokens(user.id);
 }

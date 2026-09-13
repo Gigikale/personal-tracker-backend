@@ -863,6 +863,10 @@ paths:
     post:
       tags: [Households]
       summary: Add a member by email (owner only)
+      description: >-
+        If the email already has an account, they're added immediately, emailed, and notified
+        in-app. If not, a pending invite is created and emailed to them; they're added
+        automatically the moment they sign up with that email (invites expire after 7 days).
       requestBody:
         required: true
         content:
@@ -880,11 +884,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Household'
+                allOf:
+                  - $ref: '#/components/schemas/Household'
+                  - type: object
+                    properties:
+                      invitedPending:
+                        type: boolean
+                        description: True when the email had no account yet and a pending invite was created instead.
         '403':
           description: Not the household owner
         '404':
-          description: Household not found, or no user with that email
+          description: Household not found
 
   /households/{id}/members/{userId}:
     parameters:
@@ -898,6 +908,9 @@ paths:
     delete:
       tags: [Households]
       summary: Remove a member (owner, or the member removing themselves)
+      description: >-
+        When the owner removes someone else, that person is emailed and notified in-app.
+        Voluntarily leaving does not trigger either.
       responses:
         '204':
           description: Removed
@@ -1414,7 +1427,7 @@ components:
       properties:
         type:
           type: string
-          enum: [BUDGET_THRESHOLD, RECURRING_EXPENSE, SYSTEM]
+          enum: [BUDGET_THRESHOLD, RECURRING_EXPENSE, HOUSEHOLD_INVITE, HOUSEHOLD_MEMBER_REMOVED, SYSTEM]
         title:
           type: string
         message:
@@ -1434,7 +1447,7 @@ components:
           format: uuid
         type:
           type: string
-          enum: [BUDGET_THRESHOLD, RECURRING_EXPENSE, SYSTEM]
+          enum: [BUDGET_THRESHOLD, RECURRING_EXPENSE, HOUSEHOLD_INVITE, HOUSEHOLD_MEMBER_REMOVED, SYSTEM]
         title:
           type: string
         message:

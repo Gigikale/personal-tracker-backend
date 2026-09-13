@@ -2,6 +2,7 @@ import { prisma } from '../../prisma';
 import { HttpError } from '../../lib/errors';
 import { toHttpError } from '../../lib/prismaErrors';
 import { formatMoney } from '../../lib/currency';
+import { sendHouseholdInviteEmail, sendHouseholdMemberRemovedEmail } from '../../lib/email';
 import { createNotification } from '../notifications/notification.service';
 import type {
   AddHouseholdMemberInput,
@@ -13,6 +14,7 @@ import type {
 } from './household.schemas';
 
 const THRESHOLDS = [120, 100, 80] as const;
+const INVITE_EXPIRY_DAYS = 7;
 
 async function assertMembership(userId: string, householdId: string) {
   const household = await prisma.household.findFirst({
@@ -62,22 +64,54 @@ export async function getHousehold(userId: string, householdId: string) {
 }
 
 export async function addMember(userId: string, householdId: string, input: AddHouseholdMemberInput) {
-  await assertOwner(userId, householdId);
+  const household = await assertOwner(userId, householdId);
+  const email = input.email;
 
-  const targetUser = await prisma.user.findUnique({ where: { email: input.email } });
-  if (!targetUser) {
-    throw new HttpError(404, 'No user found with that email');
-  }
+  const [targetUser, inviter] = await Promise.all([
+    prisma.user.findUnique({ where: { email } }),
+    prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { firstName: true, lastName: true } }),
+  ]);
+  const inviterName = `${inviter.firstName} ${inviter.lastName}`;
 
-  try {
-    await prisma.householdMember.create({
-      data: { householdId, userId: targetUser.id, role: 'MEMBER' },
+  if (targetUser) {
+    try {
+      await prisma.householdMember.create({
+        data: { householdId, userId: targetUser.id, role: 'MEMBER' },
+      });
+    } catch (err) {
+      toHttpError(err, 'This user is already a member of the household');
+    }
+
+    await createNotification(targetUser.id, {
+      type: 'HOUSEHOLD_INVITE',
+      title: `Added to "${household.name}"`,
+      message: `${inviterName} added you to the household "${household.name}".`,
+      metadata: { householdId },
     });
-  } catch (err) {
-    toHttpError(err, 'This user is already a member of the household');
+    await sendHouseholdInviteEmail(targetUser.email, { householdName: household.name, inviterName, hasAccount: true });
+
+    return { ...(await getHousehold(userId, householdId)), invitedPending: false };
   }
 
-  return getHousehold(userId, householdId);
+  // No account with this email yet — hold a pending invite that gets converted into real
+  // membership automatically the moment they sign up (see linkPendingHouseholdInvites).
+  await prisma.householdInvite.upsert({
+    where: { householdId_email: { householdId, email } },
+    create: {
+      householdId,
+      email,
+      invitedById: userId,
+      expiresAt: new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+    },
+    update: {
+      invitedById: userId,
+      expiresAt: new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+      acceptedAt: null,
+    },
+  });
+  await sendHouseholdInviteEmail(email, { householdName: household.name, inviterName, hasAccount: false });
+
+  return { ...(await getHousehold(userId, householdId)), invitedPending: true };
 }
 
 export async function removeMember(userId: string, householdId: string, targetUserId: string): Promise<void> {
@@ -92,7 +126,22 @@ export async function removeMember(userId: string, householdId: string, targetUs
     throw new HttpError(400, 'The household owner cannot be removed — delete the household instead');
   }
 
+  const removed = await prisma.householdMember.findFirst({
+    where: { householdId, userId: targetUserId },
+    include: { user: { select: { email: true } } },
+  });
+
   await prisma.householdMember.deleteMany({ where: { householdId, userId: targetUserId } });
+
+  if (removed && !isSelf) {
+    await createNotification(targetUserId, {
+      type: 'HOUSEHOLD_MEMBER_REMOVED',
+      title: `Removed from "${household.name}"`,
+      message: `You were removed from the household "${household.name}".`,
+      metadata: { householdId },
+    });
+    await sendHouseholdMemberRemovedEmail(removed.user.email, household.name);
+  }
 }
 
 export async function updateHousehold(userId: string, householdId: string, input: UpdateHouseholdInput) {

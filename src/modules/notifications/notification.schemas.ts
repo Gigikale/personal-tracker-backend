@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-const notificationTypeEnum = z.enum(['BUDGET_THRESHOLD', 'RECURRING_EXPENSE', 'SYSTEM']);
+const notificationTypeEnum = z.enum([
+  'BUDGET_THRESHOLD',
+  'RECURRING_EXPENSE',
+  'HOUSEHOLD_INVITE',
+  'HOUSEHOLD_MEMBER_REMOVED',
+  'SYSTEM',
+]);
 
 export const createNotificationSchema = z.object({
   type: notificationTypeEnum,

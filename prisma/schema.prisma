@@ -17,6 +17,8 @@ enum RecurrenceFrequency {
 enum NotificationType {
   BUDGET_THRESHOLD
   RECURRING_EXPENSE
+  HOUSEHOLD_INVITE
+  HOUSEHOLD_MEMBER_REMOVED
   SYSTEM
 }
 
@@ -53,6 +55,7 @@ model User {
   savingsGoals         SavingsGoal[]
   ownedHouseholds      Household[]
   householdMemberships HouseholdMember[]
+  sentHouseholdInvites HouseholdInvite[]
 
   @@index([deletedAt])
   @@map("users")
@@ -232,9 +235,27 @@ model Household {
   owner   User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   members HouseholdMember[]
   budgets HouseholdBudget[]
+  invites HouseholdInvite[]
 
   @@index([deletedAt])
   @@map("households")
+}
+
+model HouseholdInvite {
+  id          String    @id @default(uuid())
+  householdId String
+  email       String
+  invitedById String
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, email])
+  @@index([email])
+  @@map("household_invites")
 }
 
 model HouseholdMember {
