@@ -24,7 +24,7 @@ export function createApp() {
   const app = express();
 
   app.use(helmet());
-  app.use(cors({ origin: env.corsOrigins ?? true }));
+  app.use(cors({ origin: env.corsOrigins ?? true, exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'] }));
   app.use(
     pinoHttp({
       logger,
