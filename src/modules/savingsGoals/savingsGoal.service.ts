@@ -51,15 +51,19 @@ export async function deleteSavingsGoal(userId: string, id: string): Promise<voi
 }
 
 export async function contributeToSavingsGoal(userId: string, id: string, input: ContributeSavingsGoalInput) {
-  const goal = await getSavingsGoal(userId, id);
-  const newAmount = Number(goal.currentAmount) + input.amount;
+  await getSavingsGoal(userId, id);
 
-  if (newAmount < 0) {
+  // Guard and increment in one atomic statement so two concurrent contributions can't both
+  // read the same starting balance and have one silently overwrite the other.
+  const minRequired = input.amount < 0 ? -input.amount : 0;
+  const result = await prisma.savingsGoal.updateMany({
+    where: { id, userId, deletedAt: null, currentAmount: { gte: minRequired } },
+    data: { currentAmount: { increment: input.amount } },
+  });
+
+  if (result.count === 0) {
     throw new HttpError(400, 'This would take the savings goal balance below 0');
   }
 
-  return prisma.savingsGoal.update({
-    where: { id },
-    data: { currentAmount: newAmount },
-  });
+  return getSavingsGoal(userId, id);
 }

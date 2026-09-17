@@ -46,3 +46,12 @@ export const passwordResetRateLimiter = rateLimit({
   skip: skipInTests,
   message: { message: 'Too many password reset attempts. Try again later.' },
 });
+
+export const householdInviteRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTests,
+  message: { message: 'Too many invites sent. Try again later.' },
+});

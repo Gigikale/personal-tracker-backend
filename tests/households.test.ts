@@ -5,6 +5,12 @@ import { prisma } from '../src/prisma';
 import { resetDatabase } from './helpers/resetDb';
 import { signupUser } from './helpers/testUser';
 
+jest.mock('../src/lib/email', () => ({
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+  sendHouseholdInviteEmail: jest.fn().mockResolvedValue(undefined),
+  sendHouseholdMemberRemovedEmail: jest.fn().mockResolvedValue(undefined),
+}));
+
 const app = createApp();
 
 beforeEach(async () => {

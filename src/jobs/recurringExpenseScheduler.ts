@@ -5,6 +5,7 @@ import { prisma } from '../prisma';
 import { formatMoney } from '../lib/currency';
 import { logger } from '../lib/logger';
 import { syncBudgetThresholds } from '../modules/budgets/budget.service';
+import { syncHouseholdBudgetsForUser } from '../modules/households/household.service';
 import { createNotification } from '../modules/notifications/notification.service';
 
 const MAX_CATCH_UP_ITERATIONS = 500;
@@ -37,23 +38,35 @@ export async function runRecurringExpenseSweep(): Promise<void> {
   });
 
   for (const recurring of due) {
-    let nextRunDate = recurring.nextRunDate;
-    let isActive = recurring.isActive;
+    let currentRunDate = recurring.nextRunDate;
     let iterations = 0;
 
-    while (nextRunDate <= now && isActive && iterations < MAX_CATCH_UP_ITERATIONS) {
+    while (currentRunDate <= now && iterations < MAX_CATCH_UP_ITERATIONS) {
+      const nextRunDate = addFrequency(currentRunDate, recurring.frequency);
+      const stillActive = !(recurring.endDate && nextRunDate > recurring.endDate);
+
+      // Claim this occurrence by advancing nextRunDate atomically, guarded on it still
+      // matching what we read. If a concurrent sweep (e.g. an overlapping boot + cron tick)
+      // already claimed it, the guard fails and we stop instead of creating a duplicate expense.
+      const claim = await prisma.recurringExpense.updateMany({
+        where: { id: recurring.id, nextRunDate: currentRunDate, isActive: true, deletedAt: null },
+        data: { nextRunDate, isActive: stillActive },
+      });
+      if (claim.count === 0) break;
+
       const expense = await prisma.expense.create({
         data: {
           userId: recurring.userId,
           categoryId: recurring.categoryId,
           amount: recurring.amount,
           description: recurring.description,
-          date: nextRunDate,
+          date: currentRunDate,
           recurringExpenseId: recurring.id,
         },
       });
 
       await syncBudgetThresholds(recurring.userId, expense.categoryId, expense.date);
+      await syncHouseholdBudgetsForUser(recurring.userId, expense.date);
       await createNotification(recurring.userId, {
         type: 'RECURRING_EXPENSE',
         title: `${recurring.description ?? 'Recurring expense'} added`,
@@ -61,17 +74,10 @@ export async function runRecurringExpenseSweep(): Promise<void> {
         metadata: { recurringExpenseId: recurring.id, expenseId: expense.id },
       });
 
-      nextRunDate = addFrequency(nextRunDate, recurring.frequency);
-      if (recurring.endDate && nextRunDate > recurring.endDate) {
-        isActive = false;
-      }
+      currentRunDate = nextRunDate;
+      if (!stillActive) break;
       iterations++;
     }
-
-    await prisma.recurringExpense.update({
-      where: { id: recurring.id },
-      data: { nextRunDate, isActive },
-    });
   }
 }
 

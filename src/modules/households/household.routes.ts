@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { asyncHandler } from '../../lib/asyncHandler';
+import { householdInviteRateLimiter } from '../../middleware/rateLimit';
 import * as householdService from './household.service';
 import {
   addHouseholdMemberSchema,
@@ -57,6 +58,7 @@ householdRouter.delete(
 
 householdRouter.post(
   '/:id/members',
+  householdInviteRateLimiter,
   asyncHandler(async (req, res) => {
     const input = addHouseholdMemberSchema.parse(req.body);
     const household = await householdService.addMember(req.userId!, req.params.id, input);
