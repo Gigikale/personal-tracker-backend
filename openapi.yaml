@@ -485,6 +485,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/BudgetSummary'
 
+  /budgets/trend:
+    get:
+      tags: [Budgets]
+      summary: Budget vs. actual spending across recent months
+      description: >-
+        Returns one point per month, oldest first, ending on the current UTC month — useful for
+        spotting spending trends over time. Defaults to the last 6 months.
+      parameters:
+        - name: months
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 24
+      responses:
+        '200':
+          description: Monthly spending trend
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BudgetTrendPoint'
+
   /budgets/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
@@ -1319,6 +1343,37 @@ components:
                     format: uuid
                   categoryName:
                     type: string
+
+    BudgetTrendPoint:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        budgetAmount:
+          type: number
+          nullable: true
+        actualSpent:
+          type: number
+        remaining:
+          type: number
+          nullable: true
+        percentUsed:
+          type: number
+          nullable: true
+        byCategory:
+          type: array
+          items:
+            type: object
+            properties:
+              categoryId:
+                type: string
+                format: uuid
+              categoryName:
+                type: string
+              spent:
+                type: number
 
     BudgetSummaryLine:
       type: object

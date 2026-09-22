@@ -4,9 +4,16 @@ import { toHttpError } from '../../lib/prismaErrors';
 import { formatMoney } from '../../lib/currency';
 import { getOwnedCategoryOrThrow } from '../categories/category.service';
 import { createNotification } from '../notifications/notification.service';
-import type { BudgetSummaryQuery, CreateBudgetInput, ListBudgetsQuery, UpdateBudgetInput } from './budget.schemas';
+import type {
+  BudgetSummaryQuery,
+  BudgetTrendQuery,
+  CreateBudgetInput,
+  ListBudgetsQuery,
+  UpdateBudgetInput,
+} from './budget.schemas';
 
 const THRESHOLDS = [120, 100, 80] as const;
+const DEFAULT_TREND_MONTHS = 6;
 
 interface CategorySummary {
   categoryId: string;
@@ -143,6 +150,67 @@ export async function getBudgetSummary(userId: string, query: BudgetSummaryQuery
     },
     categories: categorySummaries,
   };
+}
+
+export async function getBudgetTrend(userId: string, query: BudgetTrendQuery) {
+  const months = query.months ?? DEFAULT_TREND_MONTHS;
+  const now = new Date();
+  const anchorMonth = now.getUTCMonth() + 1;
+  const anchorYear = now.getUTCFullYear();
+
+  // Oldest first, so the response reads left-to-right on a chart.
+  const periods = Array.from({ length: months }, (_, i) => {
+    const offset = months - 1 - i;
+    const d = new Date(Date.UTC(anchorYear, anchorMonth - 1 - offset, 1));
+    return { month: d.getUTCMonth() + 1, year: d.getUTCFullYear() };
+  });
+
+  return Promise.all(
+    periods.map(async ({ month, year }) => {
+      const periodStart = new Date(Date.UTC(year, month - 1, 1));
+      const periodEnd = new Date(Date.UTC(year, month, 1));
+
+      const [overallBudget, expenseTotals, overallActual] = await Promise.all([
+        prisma.budget.findFirst({ where: { userId, categoryId: null, month, year, deletedAt: null } }),
+        prisma.expense.groupBy({
+          by: ['categoryId'],
+          where: { userId, deletedAt: null, date: { gte: periodStart, lt: periodEnd } },
+          _sum: { amount: true },
+        }),
+        prisma.expense.aggregate({
+          where: { userId, deletedAt: null, date: { gte: periodStart, lt: periodEnd } },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      const categoryIds = expenseTotals.map((e) => e.categoryId);
+      const categories = categoryIds.length
+        ? await prisma.category.findMany({ where: { id: { in: categoryIds } } })
+        : [];
+      const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+
+      const budgetAmount = overallBudget ? Number(overallBudget.amount) : null;
+      const actualSpent = Number(overallActual._sum.amount ?? 0);
+
+      const byCategory = expenseTotals
+        .map((e) => ({
+          categoryId: e.categoryId,
+          categoryName: categoryNameById.get(e.categoryId) ?? 'Unknown category',
+          spent: Number(e._sum.amount ?? 0),
+        }))
+        .sort((a, b) => b.spent - a.spent);
+
+      return {
+        month,
+        year,
+        budgetAmount,
+        actualSpent,
+        remaining: budgetAmount !== null ? budgetAmount - actualSpent : null,
+        percentUsed: budgetAmount ? Math.round((actualSpent / budgetAmount) * 1000) / 10 : null,
+        byCategory,
+      };
+    }),
+  );
 }
 
 async function syncOneBudgetThreshold(

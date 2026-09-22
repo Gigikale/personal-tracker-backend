@@ -4,6 +4,7 @@ import { asyncHandler } from '../../lib/asyncHandler';
 import * as budgetService from './budget.service';
 import {
   budgetSummaryQuerySchema,
+  budgetTrendQuerySchema,
   createBudgetSchema,
   listBudgetsQuerySchema,
   updateBudgetSchema,
@@ -35,6 +36,15 @@ budgetRouter.get(
     const query = budgetSummaryQuerySchema.parse(req.query);
     const summary = await budgetService.getBudgetSummary(req.userId!, query);
     res.status(200).json(summary);
+  }),
+);
+
+budgetRouter.get(
+  '/trend',
+  asyncHandler(async (req, res) => {
+    const query = budgetTrendQuerySchema.parse(req.query);
+    const trend = await budgetService.getBudgetTrend(req.userId!, query);
+    res.status(200).json(trend);
   }),
 );
 

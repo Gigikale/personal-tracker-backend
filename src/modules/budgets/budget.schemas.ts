@@ -23,7 +23,12 @@ export const budgetSummaryQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100).optional(),
 });
 
+export const budgetTrendQuerySchema = z.object({
+  months: z.coerce.number().int().min(1).max(24).optional(),
+});
+
 export type CreateBudgetInput = z.infer<typeof createBudgetSchema>;
 export type UpdateBudgetInput = z.infer<typeof updateBudgetSchema>;
 export type ListBudgetsQuery = z.infer<typeof listBudgetsQuerySchema>;
 export type BudgetSummaryQuery = z.infer<typeof budgetSummaryQuerySchema>;
+export type BudgetTrendQuery = z.infer<typeof budgetTrendQuerySchema>;
