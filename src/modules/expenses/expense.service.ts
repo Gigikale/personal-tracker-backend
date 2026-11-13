@@ -36,7 +36,7 @@ export async function listExpenses(userId: string, query: ListExpensesQuery) {
   const limit = query.limit ?? DEFAULT_PAGE_SIZE;
   const page = query.page ?? 1;
 
-  const [expenses, total] = await Promise.all([
+  const [expenses, total, sum] = await Promise.all([
     prisma.expense.findMany({
       where,
       orderBy: { date: 'desc' },
@@ -44,9 +44,12 @@ export async function listExpenses(userId: string, query: ListExpensesQuery) {
       take: limit,
     }),
     prisma.expense.count({ where }),
+    prisma.expense.aggregate({ where, _sum: { amount: true } }),
   ]);
 
-  return { expenses, total, page, limit };
+  // Sum of every matching expense, not just this page, so a filter like "this year in Events" has a total.
+  const totalAmount = Number(sum._sum.amount ?? 0);
+  return { expenses, total, totalAmount, page, limit };
 }
 
 export function listExpensesForExport(userId: string, query: ListExpensesQuery) {

@@ -332,6 +332,16 @@ paths:
       responses:
         '200':
           description: Expenses
+          headers:
+            X-Total-Count:
+              description: Number of expenses matching the filters (all pages)
+              schema:
+                type: integer
+            X-Total-Amount:
+              description: Sum of the amounts of all expenses matching the filters (all pages)
+              schema:
+                type: string
+                example: '15000.00'
           content:
             application/json:
               schema:
