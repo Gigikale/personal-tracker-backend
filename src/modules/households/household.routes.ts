@@ -8,6 +8,7 @@ import {
   createHouseholdBudgetSchema,
   createHouseholdSchema,
   householdBudgetSummaryQuerySchema,
+  householdBudgetYearSummaryQuerySchema,
   updateHouseholdBudgetSchema,
   updateHouseholdSchema,
 } from './household.schemas';
@@ -96,6 +97,15 @@ householdRouter.get(
   asyncHandler(async (req, res) => {
     const query = householdBudgetSummaryQuerySchema.parse(req.query);
     const summary = await householdService.getHouseholdBudgetSummary(req.userId!, req.params.id, query);
+    res.status(200).json(summary);
+  }),
+);
+
+householdRouter.get(
+  '/:id/budgets/year-summary',
+  asyncHandler(async (req, res) => {
+    const query = householdBudgetYearSummaryQuerySchema.parse(req.query);
+    const summary = await householdService.getHouseholdBudgetYearSummary(req.userId!, req.params.id, query);
     res.status(200).json(summary);
   }),
 );

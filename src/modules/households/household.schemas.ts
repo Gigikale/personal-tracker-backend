@@ -32,9 +32,14 @@ export const householdBudgetSummaryQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100).optional(),
 });
 
+export const householdBudgetYearSummaryQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
+});
+
 export type CreateHouseholdInput = z.infer<typeof createHouseholdSchema>;
 export type UpdateHouseholdInput = z.infer<typeof updateHouseholdSchema>;
 export type AddHouseholdMemberInput = z.infer<typeof addHouseholdMemberSchema>;
 export type CreateHouseholdBudgetInput = z.infer<typeof createHouseholdBudgetSchema>;
 export type UpdateHouseholdBudgetInput = z.infer<typeof updateHouseholdBudgetSchema>;
 export type HouseholdBudgetSummaryQuery = z.infer<typeof householdBudgetSummaryQuerySchema>;
+export type HouseholdBudgetYearSummaryQuery = z.infer<typeof householdBudgetYearSummaryQuerySchema>;

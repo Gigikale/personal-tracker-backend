@@ -9,6 +9,7 @@ import type {
   CreateHouseholdBudgetInput,
   CreateHouseholdInput,
   HouseholdBudgetSummaryQuery,
+  HouseholdBudgetYearSummaryQuery,
   UpdateHouseholdBudgetInput,
   UpdateHouseholdInput,
 } from './household.schemas';
@@ -267,6 +268,78 @@ export async function getHouseholdBudgetSummary(
       currency: m.user.currency,
       spent: spentByUserId.get(m.userId) ?? 0,
     })),
+  };
+}
+
+// Every month of one year side by side, so a household can see its whole year at a glance
+// rather than one month at a time.
+export async function getHouseholdBudgetYearSummary(
+  userId: string,
+  householdId: string,
+  query: HouseholdBudgetYearSummaryQuery,
+) {
+  await assertMembership(userId, householdId);
+
+  const year = query.year ?? new Date().getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
+
+  const [budgets, members] = await Promise.all([
+    prisma.householdBudget.findMany({ where: { householdId, year, deletedAt: null } }),
+    prisma.householdMember.findMany({
+      where: { householdId },
+      include: { user: { select: { currency: true } } },
+    }),
+  ]);
+
+  const expenses = await prisma.expense.findMany({
+    where: {
+      userId: { in: members.map((m) => m.userId) },
+      deletedAt: null,
+      date: { gte: yearStart, lt: yearEnd },
+    },
+    select: { amount: true, date: true },
+  });
+
+  const spentByMonth = new Array<number>(12).fill(0);
+  for (const e of expenses) {
+    spentByMonth[e.date.getUTCMonth()] += Number(e.amount);
+  }
+  const budgetByMonth = new Map(budgets.map((b) => [b.month, b]));
+
+  const months = spentByMonth.map((spent, i) => {
+    const budget = budgetByMonth.get(i + 1);
+    const budgetAmount = budget ? Number(budget.amount) : null;
+    const actualSpent = Math.round(spent * 100) / 100;
+    return {
+      month: i + 1,
+      budgetId: budget?.id ?? null,
+      budgetAmount,
+      actualSpent,
+      remaining: budgetAmount !== null ? Math.round((budgetAmount - actualSpent) * 100) / 100 : null,
+      percentUsed: budgetAmount ? Math.round((actualSpent / budgetAmount) * 1000) / 10 : null,
+    };
+  });
+
+  // Totals only count months that have a budget, so an unbudgeted month's spending
+  // doesn't make the year look overspent; total spend for the whole year is reported separately.
+  const budgeted = months.filter((m) => m.budgetAmount !== null);
+  const totalBudget = budgeted.reduce((sum, m) => sum + m.budgetAmount!, 0);
+  const spentInBudgetedMonths = budgeted.reduce((sum, m) => sum + m.actualSpent, 0);
+  const totalSpent = months.reduce((sum, m) => sum + m.actualSpent, 0);
+
+  return {
+    year,
+    hasMixedCurrencies: new Set(members.map((m) => m.user.currency)).size > 1,
+    months,
+    totals: {
+      budgetedMonths: budgeted.length,
+      budgetAmount: Math.round(totalBudget * 100) / 100,
+      spentInBudgetedMonths: Math.round(spentInBudgetedMonths * 100) / 100,
+      remaining: Math.round((totalBudget - spentInBudgetedMonths) * 100) / 100,
+      percentUsed: totalBudget ? Math.round((spentInBudgetedMonths / totalBudget) * 1000) / 10 : null,
+      totalSpent: Math.round(totalSpent * 100) / 100,
+    },
   };
 }
 

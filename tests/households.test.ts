@@ -271,3 +271,70 @@ it('notifies every household member when the shared budget crosses a threshold',
   expect(partnerThresholdNotif).toBeDefined();
   expect(ownerThresholdNotif.title).toContain('80%');
 });
+
+it('summarises every month of a year, with totals that only count budgeted months', async () => {
+  const owner = await signupUser(app, { email: 'owner-year@example.com' });
+  const partner = await signupUser(app, { email: 'partner-year@example.com' });
+
+  const household = await request(app).post('/households').set(auth(owner.accessToken)).send({ name: 'Home' });
+  await request(app)
+    .post(`/households/${household.body.id}/members`)
+    .set(auth(owner.accessToken))
+    .send({ email: 'partner-year@example.com' });
+
+  const year = 2025;
+  await request(app)
+    .post(`/households/${household.body.id}/budgets`)
+    .set(auth(owner.accessToken))
+    .send({ amount: 1000, month: 1, year });
+  await request(app)
+    .post(`/households/${household.body.id}/budgets`)
+    .set(auth(owner.accessToken))
+    .send({ amount: 500, month: 3, year });
+
+  const ownerCategory = await request(app).post('/categories').set(auth(owner.accessToken)).send({ name: 'Rent' });
+  const partnerCategory = await request(app)
+    .post('/categories')
+    .set(auth(partner.accessToken))
+    .send({ name: 'Groceries' });
+  const spend = (token: string, categoryId: string, amount: number, date: string) =>
+    request(app).post('/expenses').set(auth(token)).send({ categoryId, amount, date });
+
+  await spend(owner.accessToken, ownerCategory.body.id, 300, '2025-01-10T12:00:00.000Z');
+  await spend(partner.accessToken, partnerCategory.body.id, 150, '2025-01-20T12:00:00.000Z');
+  await spend(owner.accessToken, ownerCategory.body.id, 80, '2025-02-05T12:00:00.000Z'); // no budget that month
+  await spend(partner.accessToken, partnerCategory.body.id, 600, '2025-03-15T12:00:00.000Z');
+  await spend(owner.accessToken, ownerCategory.body.id, 999, '2024-12-31T12:00:00.000Z'); // previous year
+
+  const res = await request(app)
+    .get(`/households/${household.body.id}/budgets/year-summary`)
+    .query({ year })
+    .set(auth(partner.accessToken));
+
+  expect(res.status).toBe(200);
+  expect(res.body.year).toBe(year);
+  expect(res.body.months).toHaveLength(12);
+  expect(res.body.months[0]).toMatchObject({ month: 1, budgetAmount: 1000, actualSpent: 450, remaining: 550, percentUsed: 45 });
+  expect(res.body.months[1]).toMatchObject({ month: 2, budgetId: null, budgetAmount: null, actualSpent: 80, remaining: null });
+  expect(res.body.months[2]).toMatchObject({ month: 3, budgetAmount: 500, actualSpent: 600, remaining: -100, percentUsed: 120 });
+  expect(res.body.months[11]).toMatchObject({ month: 12, budgetAmount: null, actualSpent: 0 });
+  expect(res.body.totals).toEqual({
+    budgetedMonths: 2,
+    budgetAmount: 1500,
+    spentInBudgetedMonths: 1050,
+    remaining: 450,
+    percentUsed: 70,
+    totalSpent: 1130,
+  });
+});
+
+it('hides a household year summary from non-members', async () => {
+  const owner = await signupUser(app, { email: 'owner-year2@example.com' });
+  const stranger = await signupUser(app, { email: 'stranger-year@example.com' });
+  const household = await request(app).post('/households').set(auth(owner.accessToken)).send({ name: 'Home' });
+
+  const res = await request(app)
+    .get(`/households/${household.body.id}/budgets/year-summary`)
+    .set(auth(stranger.accessToken));
+  expect(res.status).toBe(404);
+});

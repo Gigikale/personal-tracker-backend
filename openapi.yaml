@@ -1011,6 +1011,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/HouseholdBudgetSummary'
 
+  /households/{id}/budgets/year-summary:
+    parameters:
+      - $ref: '#/components/parameters/IdParam'
+    get:
+      tags: [Households]
+      summary: Budget vs. actual spend for every month of a year, with yearly totals
+      parameters:
+        - name: year
+          in: query
+          description: Defaults to the current year
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Twelve monthly rows plus totals for the year
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdBudgetYearSummary'
+
   /households/{id}/budgets/{budgetId}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
@@ -1656,6 +1676,53 @@ components:
           format: date-time
           nullable: true
 
+    HouseholdBudgetYearSummary:
+      type: object
+      properties:
+        year:
+          type: integer
+        hasMixedCurrencies:
+          type: boolean
+        months:
+          type: array
+          description: Always 12 entries, January to December
+          items:
+            type: object
+            properties:
+              month:
+                type: integer
+              budgetId:
+                type: string
+                format: uuid
+                nullable: true
+              budgetAmount:
+                type: number
+                nullable: true
+              actualSpent:
+                type: number
+              remaining:
+                type: number
+                nullable: true
+              percentUsed:
+                type: number
+                nullable: true
+        totals:
+          type: object
+          description: budgetAmount, spentInBudgetedMonths, remaining and percentUsed only count months that have a budget; totalSpent covers the whole year.
+          properties:
+            budgetedMonths:
+              type: integer
+            budgetAmount:
+              type: number
+            spentInBudgetedMonths:
+              type: number
+            remaining:
+              type: number
+            percentUsed:
+              type: number
+              nullable: true
+            totalSpent:
+              type: number
     HouseholdBudgetSummary:
       type: object
       properties:
