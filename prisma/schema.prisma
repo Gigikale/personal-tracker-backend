@@ -41,7 +41,7 @@ model User {
   phoneNumber  String?      @unique
   currency     CurrencyCode @default(USD)
   createdAt    DateTime     @default(now())
-  updatedAt    DateTime  @updatedAt
+  updatedAt    DateTime     @updatedAt
   deletedAt    DateTime?
 
   categories           Category[]
@@ -213,10 +213,27 @@ model SavingsGoal {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributions SavingsContribution[]
 
   @@index([deletedAt])
   @@map("savings_goals")
+}
+
+// One row per amount added to (positive) or withdrawn from (negative) a savings goal.
+// The goal's currentAmount is kept equal to the sum of its contributions.
+model SavingsContribution {
+  id            String   @id @default(uuid())
+  goalId        String
+  amount        Decimal  @db.Decimal(12, 2)
+  note          String?
+  contributedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  goal SavingsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, contributedAt])
+  @@map("savings_contributions")
 }
 
 enum HouseholdRole {
